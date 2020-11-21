@@ -1,0 +1,62 @@
+#include <Arduino.h>
+#include <DHT.h>
+#include <ESP8266WiFi.h>
+#include <MQTT.h>
+#include <Servo.h>
+
+int dht=2,motor=13;
+String temperatur="0.0";
+DHT suhu(dht, DHT11);
+WiFiClient net;
+MQTTClient client;
+Servo myservo;
+String py;
+
+void setup() {
+  Serial.begin(9600);
+  WiFi.begin("sotomie","kuahnyasedep");
+  client.begin("broker.shiftr.io", net);
+  pinMode(dht,INPUT_PULLUP);
+  myservo.attach(motor);
+  suhu.begin();
+  client.onMessage(messageReceived);
+  connect();
+}
+
+void loop() {
+  client.loop();
+  if(!client.connected()) {
+    connect();
+  }
+  String t=(String)suhu.readTemperature();
+  if(t!="nan"){
+    if(temperatur!=t){
+      temperatur=t;
+      client.publish("/Suhu",temperatur);
+    }
+  }
+  if(py=="On"){
+    for(int angle = 0; angle < 180; angle+=5){                          
+      myservo.write(angle);
+      delay(5);                       
+    } 
+    delay(500);
+    for(int angle = 180; angle>=1; angle-=5){                                
+      myservo.write(angle);
+      delay(5);                       
+    }
+    delay(500);
+  }
+}
+void connect() {
+   while (WiFi.status() != WL_CONNECTED) {
+     delay(1000);
+   }
+   while (!client.connect("esp8266", "5c4fd6cf", "920c6bda3b884440")) {
+     delay(1000);
+   }
+   client.subscribe("/Motor");
+}
+void messageReceived(String &topic, String &payload) {
+  py=payload;
+}
